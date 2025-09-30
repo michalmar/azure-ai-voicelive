@@ -1,0 +1,80 @@
+# ----- General -----
+.DS_Store
+Thumbs.db
+*.log
+logs/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ----- Environment files -----
+.env
+.env.*
+!.env.example
+
+# ----- Python / Backend -----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# Python tooling caches
+.pytest_cache/
+.mypy_cache/
+.pyre/
+.pytype/
+coverage/
+htmlcov/
+.coverage*
+.tox/
+.cache/
+
+# Backend specific
+backend/**/__pycache__/
+backend/**/*.py[cod]
+backend/.env
+backend/.env.*
+backend/.mypy_cache/
+backend/.pytest_cache/
+backend/.ruff_cache/
+
+# ----- Node / Frontend -----
+node_modules/
+.pnp/
+.pnp.js
+
+# Next.js / Vercel
+.next/
+out/
+.vercel/
+
+# Frontend tooling caches
+.turbo/
+yarn-error.log
+.pnpm-debug.log
+npm-debug.log*
+frontend/.env*
+!frontend/.env.example
+
+# Build artifacts
+*.tsbuildinfo
+
+# ----- Docker -----
+**/.dockerignore
+**/docker-compose.override.yml
+**/docker-compose.local.yml
+**/docker-compose.dev.yml
