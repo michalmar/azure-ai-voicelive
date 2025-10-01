@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Mic, MicOff, Volume2 } from "lucide-react";
+import { Mic, MicOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import AudioLinesOrb from "@/components/AudioLinesOrb";
 
 type AssistantState = "idle" | "listening" | "processing" | "speaking";
 
@@ -38,8 +39,9 @@ export default function Home() {
       mediaStreamRef.current = stream;
 
       // Initialize audio context
-      const audioContext = new (window.AudioContext ||
-        (window as any).webkitAudioContext)({
+      const AudioContextClass = window.AudioContext ||
+        (window as typeof window & { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const audioContext = new AudioContextClass({
         sampleRate: 24000,
       });
       audioContextRef.current = audioContext;
@@ -81,7 +83,14 @@ export default function Home() {
   };
 
   // Handle incoming WebSocket messages
-  const handleWebSocketMessage = (message: any) => {
+  const handleWebSocketMessage = (message: {
+    type: string;
+    text?: string;
+    data?: string;
+    function?: string;
+    message?: string;
+    [key: string]: unknown;
+  }) => {
     switch (message.type) {
       case "ready":
       case "session_ready":
@@ -113,15 +122,17 @@ export default function Home() {
 
       case "audio":
         // Queue audio for playback
-        playAudio(message.data);
+        if (message.data) {
+          playAudio(message.data);
+        }
         break;
 
       case "user_transcript":
-        setTranscript(message.text);
+        setTranscript(message.text || "");
         break;
 
       case "assistant_transcript":
-        setAssistantText(message.text);
+        setAssistantText(message.text || "");
         break;
 
       case "function_call":
@@ -130,7 +141,7 @@ export default function Home() {
 
       case "error":
         console.error("Server error:", message.message);
-        setError(message.message);
+        setError(message.message || "Unknown error");
         break;
 
       default:
@@ -315,58 +326,9 @@ export default function Home() {
       {/* Main Content */}
       <div className="flex flex-col items-center justify-center space-y-12 max-w-2xl w-full">
         {/* Assistant Orb */}
-        <div className="relative flex items-center justify-center">
-          {/* Idle State: Subtle Pulsing Glow */}
-          {state === "idle" && isConnected && (
-            <div className="relative">
-              <div className="absolute inset-0 animate-pulse-glow">
-                <div className="w-48 h-48 rounded-full bg-purple-500 opacity-20 blur-3xl" />
-              </div>
-              <Volume2 className="w-48 h-48 text-purple-400 relative z-10" />
-            </div>
-          )}
-
-          {/* Listening State: Blue Pulsing */}
-          {state === "listening" && (
-            <div className="relative">
-              <div className="absolute inset-0 animate-pulse-fast">
-                <div className="w-48 h-48 rounded-full bg-blue-500 opacity-30 blur-3xl" />
-              </div>
-              <div className="absolute inset-0 animate-ping">
-                <div className="w-48 h-48 rounded-full bg-blue-400 opacity-20" />
-              </div>
-              <Volume2 className="w-48 h-48 text-blue-400 relative z-10" />
-            </div>
-          )}
-
-          {/* Processing State: Yellow Spinning */}
-          {state === "processing" && (
-            <div className="relative">
-              <div className="absolute inset-0 animate-spin-slow">
-                <div className="w-48 h-48 rounded-full bg-gradient-to-r from-yellow-400 to-orange-400 opacity-20 blur-2xl" />
-              </div>
-              <Volume2 className="w-48 h-48 text-yellow-400 relative z-10 animate-pulse" />
-            </div>
-          )}
-
-          {/* Speaking State: Glowing and Spinning */}
-          {state === "speaking" && (
-            <div className="relative">
-              <div className="absolute inset-0 animate-spin-slow">
-                <div className="w-60 h-60 rounded-full bg-gradient-to-r from-green-400 via-emerald-400 to-teal-400 opacity-40 blur-3xl" />
-              </div>
-              <div className="absolute inset-0 animate-pulse-fast">
-                <div className="w-52 h-52 rounded-full bg-green-400 opacity-30 blur-2xl" />
-              </div>
-              <Volume2 className="w-48 h-48 text-green-400 relative z-10 animate-pulse-glow" />
-            </div>
-          )}
-
-          {/* Not Connected State */}
-          {!isConnected && (
-            <Volume2 className="w-48 h-48 text-slate-600" />
-          )}
-        </div>
+        <AudioLinesOrb 
+          state={!isConnected ? "disconnected" : state} 
+        />
 
         {/* Status Text */}
         <div className="text-center min-h-16">
