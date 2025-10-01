@@ -1,5 +1,9 @@
-fastapi==0.112.0
-uvicorn[standard]==0.30.3
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+websockets==13.1
 python-dotenv==1.0.1
-azure-ai-voicelive[all-websockets]>=1.0.0b5
-azure-identity>=1.17.0
+aiohttp==3.10.10
+isodate==0.7.2
+azure-identity==1.19.0
+azure-ai-voicelive[all-websockets]==1.0.0b1
+pydantic==2.9.2

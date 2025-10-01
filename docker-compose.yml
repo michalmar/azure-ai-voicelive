@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - AZURE_VOICELIVE_API_KEY=${AZURE_VOICELIVE_API_KEY}
+      - AZURE_VOICELIVE_ENDPOINT=${AZURE_VOICELIVE_ENDPOINT:-wss://api.voicelive.com/v1}
+      - PORT=8000
+    restart: unless-stopped
+    networks:
+      - voice-assistant-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws/voice
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - voice-assistant-network
+
+networks:
+  voice-assistant-network:
+    driver: bridge

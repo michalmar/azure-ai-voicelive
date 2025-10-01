@@ -1,16 +1,32 @@
-# syntax=docker/dockerfile:1
-FROM python:3.12-slim
+# Backend Dockerfile for Azure AI Voice Live Assistant
+FROM python:3.11-slim
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
-
+# Set working directory
 WORKDIR /app
 
-COPY requirements.txt ./
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    portaudio19-dev \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app ./app
+# Copy application code
+COPY ./app ./app
 
+# Expose port
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PORT=8000
+
+# Run the application
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

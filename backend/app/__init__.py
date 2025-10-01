@@ -1,1 +1,3 @@
-"""Backend package for the voice assistant demo."""
+"""
+Backend package initialization.
+"""
