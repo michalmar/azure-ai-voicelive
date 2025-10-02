@@ -179,7 +179,14 @@ Create a `.env` file in the `backend/` directory:
 ```env
 AZURE_VOICELIVE_API_KEY=your_api_key_here
 AZURE_VOICELIVE_ENDPOINT=wss://api.voicelive.com/v1
+AZURE_VOICELIVE_MODEL=gpt-4o-realtime-preview
+AZURE_VOICELIVE_SHOW_TRANSCRIPTIONS=True  # Set to False to hide transcriptions
 ```
+
+**Configuration Options:**
+- `AZURE_VOICELIVE_SHOW_TRANSCRIPTIONS`: Controls whether transcriptions are displayed in the UI
+  - `True`: Shows both user and assistant transcriptions in real-time (default)
+  - `False`: Hides all transcriptions, showing only the audio visualization
 
 ### Frontend Environment Variables
 

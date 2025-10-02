@@ -226,6 +226,37 @@ docker-compose up --build
 5. **Logging**: Configure proper logging and monitoring
 6. **Error Handling**: Add comprehensive error handling
 
+## Configuration Options
+
+### Backend Environment Variables
+
+| Variable | Description | Default | Values |
+|----------|-------------|---------|--------|
+| `AZURE_VOICELIVE_API_KEY` | Azure API key for Voice Live service | (required) | Your API key |
+| `AZURE_VOICELIVE_ENDPOINT` | WebSocket endpoint URL | (required) | `wss://api.voicelive.com/v1` |
+| `AZURE_VOICELIVE_MODEL` | Model identifier | (required) | `gpt-4o-realtime-preview` |
+| `AZURE_VOICELIVE_SHOW_TRANSCRIPTIONS` | Control transcription display | `True` | `True` or `False` |
+
+#### AZURE_VOICELIVE_SHOW_TRANSCRIPTIONS
+
+This environment variable controls whether transcriptions are sent from the backend to the frontend:
+
+- **`True` (default)**: Both user and assistant transcriptions are sent via WebSocket and displayed in the UI
+  - Shows what you said in real-time
+  - Shows what the assistant is saying
+  - Useful for debugging and accessibility
+
+- **`False`**: No transcription messages are sent
+  - Reduces WebSocket traffic
+  - Provides a cleaner, audio-only experience
+  - UI only shows the animated audio visualization orb
+
+**Example:**
+```bash
+# In backend/.env
+AZURE_VOICELIVE_SHOW_TRANSCRIPTIONS=False  # Hide transcriptions
+```
+
 ### Deploy to Azure
 
 1. **Azure Container Apps**:

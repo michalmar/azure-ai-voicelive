@@ -31,7 +31,7 @@ from azure.ai.voicelive.models import (
     FunctionCallOutputItem,
     ItemType,
     ToolChoiceLiteral,
-    AudioInputTranscriptionSettings,
+    # AudioInputTranscriptionSettings,
     ResponseFunctionCallItem,
     ServerEventConversationItemCreated,
     ServerEventResponseFunctionCallArgumentsDone,
@@ -194,6 +194,8 @@ async def websocket_voice_endpoint(websocket: WebSocket):
     # Get Azure credentials
     api_key = os.environ.get("AZURE_VOICELIVE_API_KEY","")
     endpoint = os.environ.get("AZURE_VOICELIVE_ENDPOINT", "")
+    model = os.environ.get("AZURE_VOICELIVE_MODEL","")
+    show_transcriptions = os.environ.get("AZURE_VOICELIVE_SHOW_TRANSCRIPTIONS", "True").lower() == "true"
     
     if not api_key:
         await websocket.send_json({
@@ -209,15 +211,24 @@ async def websocket_voice_endpoint(websocket: WebSocket):
         })
         await websocket.close()
         return
-    
+    if not model:
+        await websocket.send_json({
+            "type": "error",
+            "message": "Server configuration error: Missing model"
+        })
+        await websocket.close()
+        return
+
     credential = AzureKeyCredential(api_key)
+
+    print(f"connected to endpoint {endpoint} with model {model}")
     
     try:
         # Connect to Azure VoiceLive
         async with connect(
             endpoint=endpoint,
             credential=credential,
-            model="gpt-4o-realtime-preview",
+            model=model,
         ) as voicelive_conn:
             
             # Setup session
@@ -255,7 +266,7 @@ async def websocket_voice_endpoint(websocket: WebSocket):
                 """Receive events from VoiceLive and send to client."""
                 try:
                     async for event in voicelive_conn:
-                        await handle_voicelive_event(event, voicelive_conn, websocket)
+                        await handle_voicelive_event(event, voicelive_conn, websocket, show_transcriptions)
                         
                 except Exception as e:
                     logger.error(f"Error in VoiceLive event loop: {e}")
@@ -290,7 +301,7 @@ async def setup_session(connection):
     logger.info("Setting up VoiceLive session...")
     
     # Voice configuration
-    voice_config = AzureStandardVoice(name="en-US-AvaNeural")
+    voice_config = AzureStandardVoice(name="en-US-Andrew3:DragonHDLatestNeural", locale="en-US")
     
     # Turn detection configuration
     turn_detection_config = ServerVad(
@@ -338,10 +349,10 @@ async def setup_session(connection):
     
     # Session configuration
     session_config = RequestSession(
-        modalities=[Modality.TEXT, Modality.AUDIO],
+        modalities=[Modality.AUDIO],
 
         instructions="""
-            You are a helpful AI assistant with access to functions. 
+            You are a helpful AI assistant with access to functions.
             Use the functions when appropriate to provide accurate, real-time information. 
             If you are asked about the weather, please respond with 'Hmm... let me check the weather for you.' or similar filler and then call the get_current_weather function. 
             If you are asked about the time, please respond with 'I will get the time for you.' or similar filler and then call the get_current_time function. 
@@ -354,14 +365,15 @@ async def setup_session(connection):
         turn_detection=turn_detection_config,
         tools=function_tools,
         tool_choice=ToolChoiceLiteral.AUTO,
-        input_audio_transcription=AudioInputTranscriptionSettings(model="whisper-1"),
+        # input_audio_transcription=AudioInputTranscriptionSettings(model="gpt-4o-transcribe", language="en"),
+        input_audio_transcription=None,
     )
     
     await connection.session.update(session=session_config)
     logger.info("VoiceLive session configured")
 
 
-async def handle_voicelive_event(event, voicelive_conn, websocket: WebSocket):
+async def handle_voicelive_event(event, voicelive_conn, websocket: WebSocket, show_transcriptions: bool = True):
     """Handle events from VoiceLive and send appropriate messages to client."""
     
     if event.type == ServerEventType.SESSION_UPDATED:
@@ -407,7 +419,7 @@ async def handle_voicelive_event(event, voicelive_conn, websocket: WebSocket):
         await websocket.send_json({
             "type": "assistant_response_ended"
         })
-    
+
     elif event.type == ServerEventType.RESPONSE_DONE:
         logger.info("Response complete")
         await websocket.send_json({
@@ -417,23 +429,25 @@ async def handle_voicelive_event(event, voicelive_conn, websocket: WebSocket):
     elif event.type == ServerEventType.CONVERSATION_ITEM_INPUT_AUDIO_TRANSCRIPTION_COMPLETED:
         transcript = getattr(event, "transcript", "")
         logger.info(f"User said: {transcript}")
-        await websocket.send_json({
-            "type": "user_transcript",
-            "text": transcript
-        })
+        if show_transcriptions:
+            await websocket.send_json({
+                "type": "user_transcript",
+                "text": transcript
+            })
     
     elif event.type == ServerEventType.RESPONSE_AUDIO_TRANSCRIPT_DONE:
         transcript = getattr(event, "transcript", "")
         logger.info(f"Assistant said: {transcript}")
-        await websocket.send_json({
-            "type": "assistant_transcript",
-            "text": transcript
-        })
+        if show_transcriptions:
+            await websocket.send_json({
+                "type": "assistant_transcript",
+                "text": transcript
+            })
     
     elif event.type == ServerEventType.CONVERSATION_ITEM_CREATED:
         # Handle function calls
         if event.item.type == ItemType.FUNCTION_CALL:
-            await handle_function_call(event, voicelive_conn, websocket)
+            await handle_function_call(event, voicelive_conn, websocket, show_transcriptions)
     
     elif event.type == ServerEventType.ERROR:
         logger.error(f"VoiceLive error: {event.error.message}")
@@ -443,7 +457,7 @@ async def handle_voicelive_event(event, voicelive_conn, websocket: WebSocket):
         })
 
 
-async def handle_function_call(conversation_created_event, voicelive_conn, websocket: WebSocket):
+async def handle_function_call(conversation_created_event, voicelive_conn, websocket: WebSocket, show_transcriptions: bool = True):
     """Handle function call from the assistant."""
     if not isinstance(conversation_created_event, ServerEventConversationItemCreated):
         return
@@ -466,7 +480,7 @@ async def handle_function_call(conversation_created_event, voicelive_conn, webso
     try:
         # Wait for arguments to be complete
         async def forward_event(evt):
-            await handle_voicelive_event(evt, voicelive_conn, websocket)
+            await handle_voicelive_event(evt, voicelive_conn, websocket, show_transcriptions)
         
         function_done = await wait_for_event(
             voicelive_conn,
