@@ -6,9 +6,10 @@ type OrbState = "idle" | "listening" | "processing" | "speaking" | "disconnected
 
 interface AudioLinesOrbProps {
   state: OrbState;
+  isAgentSpeaking?: boolean;
 }
 
-export default function AudioLinesOrb({ state }: AudioLinesOrbProps) {
+export default function AudioLinesOrb({ state, isAgentSpeaking = false }: AudioLinesOrbProps) {
   const [lineLengths, setLineLengths] = useState<number[]>([]);
 
   // Initialize line heights
@@ -18,7 +19,7 @@ export default function AudioLinesOrb({ state }: AudioLinesOrbProps) {
 
   // Animate lines when speaking
   useEffect(() => {
-    if (state === "speaking") {
+    if (isAgentSpeaking) {
       const interval = setInterval(() => {
         setLineLengths((prev) =>
           prev.map(() => Math.random() * 0.7 + 0.3)
@@ -54,10 +55,19 @@ export default function AudioLinesOrb({ state }: AudioLinesOrbProps) {
       // Reset to idle positions
       setLineLengths([0.3, 0.5, 0.8, 0.4, 0.7, 0.5, 0.2]);
     }
-  }, [state]);
+  }, [state, isAgentSpeaking]);
 
   // Determine colors and glow based on state
   const getStateColors = () => {
+    // If agent is speaking, show speaking colors regardless of state
+    if (isAgentSpeaking) {
+      return {
+        line: "bg-green-400",
+        glow: "shadow-green-500/50",
+        outerGlow: "bg-green-500",
+      };
+    }
+    
     switch (state) {
       case "idle":
         return {
@@ -126,7 +136,7 @@ export default function AudioLinesOrb({ state }: AudioLinesOrbProps) {
         </div>
       )}
 
-      {state === "speaking" && (
+      {isAgentSpeaking && (
         <>
           <div className="absolute inset-0 animate-spin-slow">
             <div className="w-60 h-60 rounded-full bg-gradient-to-r from-green-400 via-emerald-400 to-teal-400 opacity-40 blur-3xl" />
@@ -154,7 +164,7 @@ export default function AudioLinesOrb({ state }: AudioLinesOrbProps) {
       </div>
 
       {/* Additional pulsing effect for speaking */}
-      {state === "speaking" && (
+      {isAgentSpeaking && (
         <div className="absolute inset-0 animate-pulse-glow pointer-events-none">
           <div className="w-full h-full rounded-full bg-green-400/10 blur-xl" />
         </div>

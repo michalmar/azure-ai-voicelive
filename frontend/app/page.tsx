@@ -14,6 +14,7 @@ export default function Home() {
   const [transcript, setTranscript] = useState("");
   const [assistantText, setAssistantText] = useState("");
   const [error, setError] = useState("");
+  const [isAgentSpeaking, setIsAgentSpeaking] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -105,6 +106,7 @@ export default function Home() {
         // Stop playing assistant audio
         audioQueueRef.current = [];
         isPlayingRef.current = false;
+        setIsAgentSpeaking(false);
         break;
 
       case "user_stopped_speaking":
@@ -221,6 +223,9 @@ export default function Home() {
       // Queue for playback
       audioQueueRef.current.push(audioBuffer);
 
+      // Mark that agent is speaking
+      setIsAgentSpeaking(true);
+
       // Start playback if not already playing
       if (!isPlayingRef.current) {
         playNextAudio();
@@ -238,6 +243,11 @@ export default function Home() {
       state === "listening"
     ) {
       isPlayingRef.current = false;
+      
+      // Notify that audio playback has fully completed
+      setIsAgentSpeaking(false);
+      console.log("Agent finished speaking - all audio played");
+      
       return;
     }
 
@@ -288,6 +298,7 @@ export default function Home() {
     setState("idle");
     setTranscript("");
     setAssistantText("");
+    setIsAgentSpeaking(false);
   };
 
   // Toggle connection
@@ -327,7 +338,8 @@ export default function Home() {
       <div className="flex flex-col items-center justify-center space-y-12 max-w-2xl w-full">
         {/* Assistant Orb */}
         <AudioLinesOrb 
-          state={!isConnected ? "disconnected" : state} 
+          state={!isConnected ? "disconnected" : state}
+          isAgentSpeaking={isAgentSpeaking}
         />
 
         {/* Status Text */}
