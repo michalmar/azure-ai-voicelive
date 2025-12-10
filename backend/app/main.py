@@ -131,6 +131,12 @@ def get_current_weather(arguments: Union[str, Mapping[str, Any]]) -> Dict[str, A
     location = args.get("location", "Unknown")
     unit = args.get("unit", "celsius")
 
+    # sleep for 4 seconds to simulate API call
+    import time
+    print("Entering sleep to simulate weather API call...")
+    time.sleep(3)
+    print("Exiting sleep...")
+
     # Mock weather data (in production, call a real weather API)
     weather_data = {
         "location": location,
@@ -358,6 +364,13 @@ async def setup_session(connection):
             If you are asked about the time, please respond with 'I will get the time for you.' or similar filler and then call the get_current_time function. 
             Explain when you're using a function and include the results in your response naturally.
         """,
+        # instructions="""
+        #     You are a helpful AI assistant with access to functions.
+        #     Use the functions when appropriate to provide accurate, real-time information. 
+        #     If you are asked about the weather, please respond with summarizing the question to check understanding or similar filler and then call the get_current_weather function. 
+        #     If you are asked about the time, please respond with 'I will get the time for you.' or similar filler and then call the get_current_time function. 
+        #     Explain when you're using a function and include the results in your response naturally.
+        # """,
         voice=voice_config,
         input_audio_format=InputAudioFormat.PCM16,
         output_audio_format=OutputAudioFormat.PCM16,
