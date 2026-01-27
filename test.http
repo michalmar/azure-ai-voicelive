@@ -1,0 +1,6 @@
+@YOUR_RESOURCE_KEY=5e18884229234943b0b6bf562028de07
+
+GET /cognitiveservices/voices/list HTTP/1.1
+
+Host: westeurope.tts.speech.azure.cn
+Ocp-Apim-Subscription-Key: YOUR_RESOURCE_KEY

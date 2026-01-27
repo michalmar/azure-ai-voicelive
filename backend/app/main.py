@@ -150,10 +150,105 @@ def get_current_weather(arguments: Union[str, Mapping[str, Any]]) -> Dict[str, A
     return weather_data
 
 
+def get_mpsv_info(arguments: Optional[Union[str, Mapping[str, Any]]] = None) -> Dict[str, Any]:
+    """Get information about social benefits from MPSV (Ministry of Labour and Social Affairs)."""
+    if isinstance(arguments, str):
+        try:
+            args = json.loads(arguments)
+        except json.JSONDecodeError:
+            args = {}
+    elif isinstance(arguments, dict):
+        args = arguments
+    else:
+        args = {}
+
+    query = args.get("query", "")
+    
+    # TODO: Implement actual MPSV info retrieval
+
+    # Read info from knowledge base file
+    kb_file_path = os.path.join(os.path.dirname(__file__), "test-kb.txt")
+    try:
+        with open(kb_file_path, "r", encoding="utf-8") as f:
+            info = f.read()
+    except FileNotFoundError:
+        logger.error(f"Knowledge base file not found: {kb_file_path}")
+        info = ""
+
+    import time
+    print("Entering sleep to simulate weather API call...")
+    time.sleep(6)
+    print("Exiting sleep...")
+    
+    return {
+        "info": info,
+        "query": query  
+    }
+
 # Available functions for the assistant
 AVAILABLE_FUNCTIONS: Dict[str, Callable[[Union[str, Mapping[str, Any]]], Mapping[str, Any]]] = {
     "get_current_time": get_current_time,
     "get_current_weather": get_current_weather,
+    "get_mpsv_info": get_mpsv_info,
+}
+
+# Available locales for the assistant
+AVAILABLE_LOCALES: Dict[str, Dict[str, str]] = {
+    "en-US": {
+        "id": "en-US",
+        "name": "English",
+        "flag": "🇺🇸",
+        "description": "English (US)"
+    },
+    "cs-CZ": {
+        "id": "cs-CZ",
+        "name": "Čeština",
+        "flag": "🇨🇿",
+        "description": "Czech"
+    },
+}
+
+DEFAULT_LOCALE_ID = "cs-CZ"
+
+# Available voices for the assistant (grouped by locale)
+AVAILABLE_VOICES: Dict[str, Dict[str, str]] = {
+    # English voices
+    "ava": {
+        "id": "ava",
+        "name": "Ava",
+        "voice": "en-US-Ava:DragonHDLatestNeural",
+        "locale": "en-US",
+        "description": "Warm & friendly"
+    },
+    "andrew": {
+        "id": "andrew",
+        "name": "Andrew",
+        "voice": "en-US-Andrew3:DragonHDLatestNeural",
+        "locale": "en-US",
+        "description": "Professional & calm"
+    },
+    # Czech voices
+    "antonin": {
+        "id": "antonin",
+        "name": "Antonín",
+        "voice": "en-US-Andrew3:DragonHDLatestNeural",
+        "locale": "cs-CZ",
+        "description": "Profesionální"
+    },
+    "vlasta": {
+        "id": "vlasta",
+        "name": "Vlasta",
+        # "voice": "en-US-Ava3:DragonHDLatestNeural",
+        "voice": "en-US-Ava:DragonHDOmniLatestNeural",
+        "locale": "cs-CZ",
+        "description": "Přátelská"
+    },
+}
+
+DEFAULT_VOICE_ID = "vlasta"
+DEFAULT_VOICE_BY_LOCALE: Dict[str, str] = {
+    "en-US": "andrew",
+    "cs-CZ": "vlasta",
 }
 
 
@@ -181,6 +276,31 @@ async def health_check():
 async def health():
     """Health check endpoint."""
     return HealthResponse(status="healthy", version="1.0.0")
+
+
+@app.get("/locales")
+async def get_locales():
+    """Get available locales/languages for the assistant."""
+    return {
+        "locales": list(AVAILABLE_LOCALES.values()),
+        "default": DEFAULT_LOCALE_ID
+    }
+
+
+@app.get("/voices")
+async def get_voices(locale: str = None):
+    """Get available voices for the assistant, optionally filtered by locale."""
+    if locale and locale in AVAILABLE_LOCALES:
+        voices = [v for v in AVAILABLE_VOICES.values() if v["locale"] == locale]
+        default = DEFAULT_VOICE_BY_LOCALE.get(locale, DEFAULT_VOICE_ID)
+    else:
+        voices = list(AVAILABLE_VOICES.values())
+        default = DEFAULT_VOICE_ID
+    
+    return {
+        "voices": voices,
+        "default": default
+    }
 
 
 @app.websocket("/ws/voice")
@@ -229,6 +349,29 @@ async def websocket_voice_endpoint(websocket: WebSocket):
 
     print(f"connected to endpoint {endpoint} with model {model}")
     
+    # Wait for initial configuration from client (voice selection, proactive greeting)
+    selected_voice_id = DEFAULT_VOICE_ID
+    enable_proactive_greeting = False
+    try:
+        init_data = await asyncio.wait_for(websocket.receive_text(), timeout=10.0)
+        init_message = json.loads(init_data)
+        if init_message.get("type") == "init":
+            # Voice selection
+            if init_message.get("voice_id"):
+                voice_id = init_message["voice_id"]
+                if voice_id in AVAILABLE_VOICES:
+                    selected_voice_id = voice_id
+                    logger.info(f"Client selected voice: {selected_voice_id}")
+                else:
+                    logger.warning(f"Unknown voice ID: {voice_id}, using default")
+            # Proactive greeting option
+            enable_proactive_greeting = init_message.get("proactive_greeting", False)
+            logger.info(f"Proactive greeting enabled: {enable_proactive_greeting}")
+    except asyncio.TimeoutError:
+        logger.info("No init message received, using default settings")
+    except json.JSONDecodeError:
+        logger.warning("Invalid init message, using default settings")
+    
     try:
         # Connect to Azure VoiceLive
         async with connect(
@@ -237,8 +380,8 @@ async def websocket_voice_endpoint(websocket: WebSocket):
             model=model,
         ) as voicelive_conn:
             
-            # Setup session
-            await setup_session(voicelive_conn)
+            # Setup session with selected voice
+            await setup_session(voicelive_conn, selected_voice_id)
             
             # Send ready signal to client
             await websocket.send_json({
@@ -268,11 +411,28 @@ async def websocket_voice_endpoint(websocket: WebSocket):
                 except Exception as e:
                     logger.error(f"Error receiving from client: {e}")
             
+            # Track if proactive greeting has been sent
+            proactive_greeting_sent = False
+            
             async def send_to_client():
                 """Receive events from VoiceLive and send to client."""
+                nonlocal proactive_greeting_sent
                 try:
                     async for event in voicelive_conn:
                         await handle_voicelive_event(event, voicelive_conn, websocket, show_transcriptions)
+                        
+                        # Trigger proactive greeting after session is ready
+                        if (event.type == ServerEventType.SESSION_UPDATED 
+                            and enable_proactive_greeting 
+                            and not proactive_greeting_sent):
+                            proactive_greeting_sent = True
+                            logger.info("Triggering proactive greeting...")
+                            try:
+                                await voicelive_conn.response.create(
+                                    additional_instructions="You say your greeting line."
+                                )
+                            except Exception as e:
+                                logger.error(f"Failed to send proactive greeting: {e}")
                         
                 except Exception as e:
                     logger.error(f"Error in VoiceLive event loop: {e}")
@@ -302,12 +462,13 @@ async def websocket_voice_endpoint(websocket: WebSocket):
             pass
 
 
-async def setup_session(connection):
+async def setup_session(connection, voice_id: str = DEFAULT_VOICE_ID):
     """Configure the VoiceLive session with function tools."""
-    logger.info("Setting up VoiceLive session...")
+    logger.info(f"Setting up VoiceLive session with voice: {voice_id}")
     
-    # Voice configuration
-    voice_config = AzureStandardVoice(name="en-US-Andrew3:DragonHDLatestNeural", locale="en-US")
+    # Get voice configuration
+    voice_data = AVAILABLE_VOICES.get(voice_id, AVAILABLE_VOICES[DEFAULT_VOICE_ID])
+    voice_config = AzureStandardVoice(name=voice_data["voice"], locale=voice_data["locale"], rate="1.0")
     
     # Turn detection configuration
     turn_detection_config = ServerVad(
@@ -351,6 +512,20 @@ async def setup_session(connection):
                 "required": ["location"],
             },
         ),
+        FunctionTool(
+            name="get_mpsv_info",
+            description="Get information about social benefits from MPSV (Ministry of Labour and Social Affairs of Czech Republic)",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The query about social benefits, e.g., 'příspěvek na bydlení', 'podpora v nezaměstnanosti'",
+                    }
+                },
+                "required": [],
+            },
+        ),
     ]
     
     # Session configuration
@@ -358,12 +533,36 @@ async def setup_session(connection):
         modalities=[Modality.AUDIO],
 
         instructions="""
-            You are a helpful AI assistant with access to functions.
-            Use the functions when appropriate to provide accurate, real-time information. 
-            If you are asked about the weather, please respond with 'Hmm... let me check the weather for you.' or similar filler and then call the get_current_weather function. 
-            If you are asked about the time, please respond with 'I will get the time for you.' or similar filler and then call the get_current_time function. 
-            Explain when you're using a function and include the results in your response naturally.
+            Jseš Eva, užitečná AI asistentka s přístupem k funkcím.
+            Vždy používej funkce, když je to vhodné, abys poskytl přesné a aktuální informace.
+
+            Vždy uvítej volajícího tímto textem na začátku konverzace:
+                'Dobrý den, dovolali jste se na úřad práce k agendě sociálních dávek. V rámci zkvalitňování našich služeb bude tento hovor monitorován. Jsem Eva, virtuální asistentka. Snažím se být co nejpřesnější, ale i já se můžu zmýlit. Jaký je váš dotaz?'
+            
+            ## Odpovědi:
+             - Když se tě zeptá na počasí, odpověž 'Hmm... musím se podívat.' nebo podobným výrokem a poté volej funkci get_current_weather.
+             - Když se tě zeptá na čas, odpověž 'Zjištím to!' nebo podobným výrokem a poté volej funkci get_current_time.
+             - Když se tě zeptá něco kolem sociálních dávek, odpověz "Vteřinku podívám se po <hlavní téma dotazu>" a poté zavolej funkci get_mpsv_info a získej potřebné informace, ze kterých můžeš odpovědět. Odpovídej POUZE z poznatků získaných z této funkce.
+            
+            Zahrň výsledky do své odpovědi přirozeně.
+
+            ## Výstup:
+             - výstup je syntetizován TTS hlasovým modelem
+             - pro nejlepší výsledek syntézy, vždy přepisuj foneticky správně slova, např.:
+                    - 'dávka sociální pomoci' jako "dáfka státní sociální pomoci' 
+                    - 'superdávka' jako 'superdáfka'
+                    - normalizuj datumy: 1.10.2025 -> prvního desátý dva tisíce dvacetpět
+
+
+            Mluvíš POUZE česky.
         """,
+        # instructions="""
+        #     You are a helpful AI assistant with access to functions.
+        #     Use the functions when appropriate to provide accurate, real-time information. 
+        #     If you are asked about the weather, please respond with 'Hmm... let me check the weather for you.' or similar filler and then call the get_current_weather function. 
+        #     If you are asked about the time, please respond with 'I will get the time for you.' or similar filler and then call the get_current_time function. 
+        #     Explain when you're using a function and include the results in your response naturally. You ONLY speak in Czech.
+        # """,
         # instructions="""
         #     You are a helpful AI assistant with access to functions.
         #     Use the functions when appropriate to provide accurate, real-time information. 

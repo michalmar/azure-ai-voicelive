@@ -4,6 +4,9 @@ import { useState, useEffect, useRef } from "react";
 import { Mic, MicOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AudioLinesOrb from "@/components/AudioLinesOrb";
+import VoiceSelector from "@/components/VoiceSelector";
+import LocaleSelector from "@/components/LocaleSelector";
+import ProactiveToggle from "@/components/ProactiveToggle";
 
 type AssistantState = "idle" | "listening" | "processing" | "speaking";
 
@@ -15,6 +18,9 @@ export default function Home() {
   const [assistantText, setAssistantText] = useState("");
   const [error, setError] = useState("");
   const [isAgentSpeaking, setIsAgentSpeaking] = useState(false);
+  const [selectedLocale, setSelectedLocale] = useState("cs-CZ");
+  const [selectedVoice, setSelectedVoice] = useState("vlasta");
+  const [proactiveGreeting, setProactiveGreeting] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -55,6 +61,14 @@ export default function Home() {
 
       ws.onopen = () => {
         console.log("WebSocket connected");
+        // Send initial configuration with selected voice and proactive greeting
+        ws.send(
+          JSON.stringify({
+            type: "init",
+            voice_id: selectedVoice,
+            proactive_greeting: proactiveGreeting,
+          })
+        );
         setIsConnected(true);
       };
 
@@ -392,6 +406,26 @@ export default function Home() {
               <p className="text-white">{assistantText}</p>
             </div>
           )}
+        </div>
+
+        {/* Language & Voice Selectors */}
+        <div className="flex flex-wrap justify-center gap-4">
+          <LocaleSelector
+            selectedLocale={selectedLocale}
+            onLocaleChange={setSelectedLocale}
+            disabled={isConnected}
+          />
+          <VoiceSelector
+            selectedVoice={selectedVoice}
+            onVoiceChange={setSelectedVoice}
+            selectedLocale={selectedLocale}
+            disabled={isConnected}
+          />
+          <ProactiveToggle
+            enabled={proactiveGreeting}
+            onToggle={setProactiveGreeting}
+            disabled={isConnected}
+          />
         </div>
 
         {/* Control Buttons */}
