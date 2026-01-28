@@ -13,6 +13,8 @@ logs/
 .env.*
 !.env.example
 
+tts-out/
+
 # ----- Python / Backend -----
 __pycache__/
 *.py[cod]
