@@ -237,7 +237,7 @@ AVAILABLE_VOICES: Dict[str, Dict[str, str]] = {
     },
     "vlasta": {
         "id": "vlasta",
-        "name": "Vlasta",
+        "name": "Ava-Omni",
         # "voice": "en-US-Ava3:DragonHDLatestNeural",
         "voice": "en-US-Ava:DragonHDOmniLatestNeural",
         "locale": "cs-CZ",
