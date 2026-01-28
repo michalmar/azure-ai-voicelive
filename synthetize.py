@@ -18,6 +18,7 @@ import os
 import sys
 import argparse
 import azure.cognitiveservices.speech as speechsdk
+from azure.identity import DefaultAzureCredential
 from dotenv import load_dotenv
 load_dotenv(override=True)
 
@@ -159,13 +160,9 @@ def main():
     args = parser.parse_args()
     
     # Check environment variables
-    speech_key = os.environ.get('SPEECH_KEY')
+    speech_key = os.environ.get('SPEECH_KEY')  # Optional - for local development fallback
     endpoint = os.environ.get('ENDPOINT')
-    
-    if not speech_key:
-        print("Error: SPEECH_KEY environment variable is not set.")
-        print("Set it with: export SPEECH_KEY=your-speech-key")
-        sys.exit(1)
+    speech_region = os.environ.get('SPEECH_REGION', '')  # Required for token-based auth
     
     if not endpoint:
         print("Error: ENDPOINT environment variable is not set.")
@@ -180,8 +177,21 @@ def main():
     # Create output directory
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     
-    # Configure Speech SDK
-    speech_config = speechsdk.SpeechConfig(subscription=speech_key, endpoint=endpoint)
+    # Configure Speech SDK - use API key if provided, otherwise use DefaultAzureCredential
+    if speech_key:
+        print("Using API key credential")
+        speech_config = speechsdk.SpeechConfig(subscription=speech_key, endpoint=endpoint)
+    else:
+        # Use DefaultAzureCredential (supports managed identity, Azure CLI, etc.)
+        print("Using DefaultAzureCredential (managed identity)")
+        if not speech_region:
+            print("Error: SPEECH_REGION environment variable is required when using managed identity.")
+            print("Set it with: export SPEECH_REGION=eastus")
+            sys.exit(1)
+        
+        credential = DefaultAzureCredential()
+        token = credential.get_token("https://cognitiveservices.azure.com/.default")
+        speech_config = speechsdk.SpeechConfig(endpoint=endpoint)
     speech_config.speech_synthesis_language = LOCALE
     
     # Read utterances from file

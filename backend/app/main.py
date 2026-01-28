@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from azure.core.credentials import AzureKeyCredential
+from azure.identity import DefaultAzureCredential
 from azure.ai.voicelive.aio import connect
 from azure.ai.voicelive.models import (
     RequestSession,
@@ -43,7 +44,7 @@ load_dotenv()
 
 # Set up logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.WARNING,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
@@ -317,19 +318,14 @@ async def websocket_voice_endpoint(websocket: WebSocket):
     await websocket.accept()
     logger.info("WebSocket connection established")
     
-    # Get Azure credentials
-    api_key = os.environ.get("AZURE_VOICELIVE_API_KEY","")
+    # Get Azure configuration
     endpoint = os.environ.get("AZURE_VOICELIVE_ENDPOINT", "")
-    model = os.environ.get("AZURE_VOICELIVE_MODEL","")
+    model = os.environ.get("AZURE_VOICELIVE_MODEL", "")
     show_transcriptions = os.environ.get("AZURE_VOICELIVE_SHOW_TRANSCRIPTIONS", "True").lower() == "true"
     
-    if not api_key:
-        await websocket.send_json({
-            "type": "error",
-            "message": "Server configuration error: Missing API key"
-        })
-        await websocket.close()
-        return
+    # Check for API key (optional - for local development fallback)
+    api_key = os.environ.get("AZURE_VOICELIVE_API_KEY", "")
+    
     if not endpoint:
         await websocket.send_json({
             "type": "error",
@@ -345,9 +341,16 @@ async def websocket_voice_endpoint(websocket: WebSocket):
         await websocket.close()
         return
 
-    credential = AzureKeyCredential(api_key)
+    # Use DefaultAzureCredential (supports managed identity, Azure CLI, environment variables, etc.)
+    # Falls back to API key if explicitly provided
+    if api_key:
+        credential = AzureKeyCredential(api_key)
+        logger.info("Using API key credential")
+    else:
+        credential = DefaultAzureCredential()
+        logger.info("Using DefaultAzureCredential (managed identity)")
 
-    print(f"connected to endpoint {endpoint} with model {model}")
+    logger.info(f"Connecting to endpoint {endpoint} with model {model}")
     
     # Wait for initial configuration from client (voice selection, proactive greeting)
     selected_voice_id = DEFAULT_VOICE_ID
